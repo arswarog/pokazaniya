@@ -60,7 +60,10 @@ interface ReadingResponse {
 
 interface CollectedReading {
     caption: string;
-    value: number | null;
+    nightValue: number | null;
+    nightDate: string | null;
+    dayValue: number | null;
+    dayDate: string | null;
 }
 
 function getLastMidnight(): string {
@@ -103,8 +106,15 @@ let paused = false;
 let running = false;
 
 function downloadCsv(readings: CollectedReading[]) {
-    const header = 'Точка учёта;Показание';
-    const rows = readings.map((r) => `${r.caption};${r.value ?? ''}`);
+    const header = 'Точка учёта;Суммарно;Дата;Показание день;Дата день;Показание ночь;Дата ночь';
+    const rows = readings.map((r) => {
+        const total =
+            r.dayValue != null && r.nightValue != null ? `${r.dayValue} - ${r.nightValue}` : '';
+        const date = (r.dayDate ?? r.nightDate)?.slice(0, 10) ?? '';
+        const dayDate = r.dayDate?.slice(0, 10) ?? '';
+        const nightDate = r.nightDate?.slice(0, 10) ?? '';
+        return `${r.caption};${total};${date};${r.dayValue ?? ''};${dayDate};${r.nightValue ?? ''};${nightDate}`;
+    });
     const csv = [header, ...rows].join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -148,13 +158,23 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
             const batchResults = await Promise.all(
                 batch.map(async (point) => {
                     const response = await fetchReading(token, point.id);
-                    const entry = response.readings.find(
-                        (r) => r.tariffZoneId === 0 && r.parameterId === -2161,
+                    const nightEntry = response.readings.find(
+                        (r) => r.tariffZoneId === 6512 && r.parameterId === -2161,
+                    );
+                    const dayEntry = response.readings.find(
+                        (r) => r.tariffZoneId === 1751 && r.parameterId === -2161,
                     );
                     const caption = point.caption;
-                    const value = entry?.lastValue != null ? entry.lastValue / 1000 : null;
-                    console.log({ caption, value, entry, response });
-                    return { caption, value };
+                    const nightValue =
+                        nightEntry?.lastValue != null
+                            ? Math.trunc(nightEntry.lastValue / 1000)
+                            : null;
+                    const nightDate = nightEntry?.lastValueDate ?? null;
+                    const dayValue =
+                        dayEntry?.lastValue != null ? Math.trunc(dayEntry.lastValue / 1000) : null;
+                    const dayDate = dayEntry?.lastValueDate ?? null;
+                    console.log({ caption, nightValue, nightDate, dayValue, dayDate, response });
+                    return { caption, nightValue, nightDate, dayValue, dayDate };
                 }),
             );
 
