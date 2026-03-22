@@ -135,35 +135,35 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
         currentReadings = [];
         const readings = currentReadings;
         const activePoints = points.filter((p) => p.id !== 0);
-        for (const point of activePoints) {
+        const BATCH_SIZE = 3;
+
+        for (let i = 0; i < activePoints.length; i += BATCH_SIZE) {
             while (paused) {
                 await new Promise((r) => setTimeout(r, 200));
             }
 
-            status.textContent = `Показания: ${readings.length}/${activePoints.length} — загрузка «${point.caption}»...`;
+            const batch = activePoints.slice(i, i + BATCH_SIZE);
+            status.textContent = `Показания: ${readings.length}/${activePoints.length} — загрузка ${batch.map((p) => `«${p.caption}»`).join(', ')}...`;
 
-            const response = await fetchReading(token, point.id);
-            const entry = response.readings.find(
-                (r) => r.tariffZoneId === 0 && r.parameterId === -2161,
+            const batchResults = await Promise.all(
+                batch.map(async (point) => {
+                    const response = await fetchReading(token, point.id);
+                    const entry = response.readings.find(
+                        (r) => r.tariffZoneId === 0 && r.parameterId === -2161,
+                    );
+                    const caption = point.caption;
+                    const value = entry?.lastValue != null ? entry.lastValue / 1000 : null;
+                    console.log({ caption, value, entry, response });
+                    return { caption, value };
+                }),
             );
 
-            const caption = point.caption;
-            const value = entry?.lastValue != null ? entry.lastValue / 1000 : null;
+            readings.push(...batchResults);
 
-            readings.push({
-                caption,
-                value,
-            });
-
-            console.log({
-                caption,
-                value,
-                entry,
-                response,
-            });
-
-            const delay = 1000 + Math.random() * 2000;
-            await new Promise((r) => setTimeout(r, delay));
+            if (i + BATCH_SIZE < activePoints.length) {
+                const delay = 1000 + Math.random() * 2000;
+                await new Promise((r) => setTimeout(r, delay));
+            }
         }
 
         status.textContent = `Готово. Показаний: ${readings.length}`;
