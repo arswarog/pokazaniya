@@ -1,21 +1,8 @@
-import { fetchMeterPoints, fetchReading } from './api';
+import { fetchMeterPoints, fetchReading, hasAccessToken } from './api';
 import { BATCH_SIZE, DELAY_MAX, DELAY_MIN } from './constants';
 import { downloadCsv } from './csv';
 import { parseReadingResponse } from './parseReadingResponse';
 import { CollectedReading } from './types';
-
-function getAccessToken(): string | null {
-    try {
-        const raw = localStorage.getItem('security_permissions');
-        if (!raw) {
-            return null;
-        }
-        const parsed = JSON.parse(raw);
-        return parsed.accessToken ?? null;
-    } catch {
-        return null;
-    }
-}
 
 function createInfoBlock(): {
     container: HTMLDivElement;
@@ -47,7 +34,7 @@ let paused = false;
 let running = false;
 let currentReadings: CollectedReading[] = [];
 
-async function collectReadings(token: string, status: HTMLDivElement, button: HTMLButtonElement) {
+async function collectReadings(status: HTMLDivElement, button: HTMLButtonElement) {
     if (running) {
         paused = !paused;
         button.textContent = paused ? 'Продолжить' : 'Пауза';
@@ -60,7 +47,7 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
 
     try {
         status.textContent = 'Загрузка списка точек учёта';
-        const points = await fetchMeterPoints(token);
+        const points = await fetchMeterPoints();
 
         currentReadings = [];
         const readings = currentReadings;
@@ -80,7 +67,7 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
 
                 const point = activePoints[idx];
 
-                const response = await fetchReading(token, point.id);
+                const response = await fetchReading(point.id);
                 readings.push(parseReadingResponse(point.caption, response));
 
                 status.textContent = `Показания: ${readings.length}/${activePoints.length}`;
@@ -111,8 +98,7 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
 }
 
 function init() {
-    const token = getAccessToken();
-    if (!token) {
+    if (!hasAccessToken()) {
         console.warn('[Показания] accessToken not found in security_permissions');
         return;
     }
@@ -120,7 +106,7 @@ function init() {
     const { status, button, downloadBtn } = createInfoBlock();
     status.textContent = 'Готов к сбору показаний';
 
-    button.addEventListener('click', () => collectReadings(token, status, button));
+    button.addEventListener('click', () => collectReadings(status, button));
     downloadBtn.addEventListener('click', () => downloadCsv(currentReadings));
 }
 
