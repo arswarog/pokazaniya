@@ -1,0 +1,2 @@
+yarn build
+# CI=true yarn test
