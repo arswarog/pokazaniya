@@ -65,51 +65,55 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
     button.textContent = 'Пауза';
 
     try {
-        status.textContent = 'Загрузка списка точек учёта...';
+        status.textContent = 'Загрузка списка точек учёта';
         const points = await fetchMeterPoints(token);
 
         currentReadings = [];
         const readings = currentReadings;
         const activePoints = points.filter((p) => p.id !== 0);
 
-        for (let i = 0; i < activePoints.length; i += BATCH_SIZE) {
-            while (paused) {
-                await new Promise((r) => setTimeout(r, 200));
-            }
+        let nextIndex = 0;
 
-            const batch = activePoints.slice(i, i + BATCH_SIZE);
-            status.textContent = `Показания: ${readings.length}/${activePoints.length} — загрузка ${batch.map((p) => `«${p.caption}»`).join(', ')}...`;
+        async function worker() {
+            while (nextIndex < activePoints.length) {
+                while (paused) {
+                    await new Promise((r) => setTimeout(r, 200));
+                }
+                const idx = nextIndex++;
+                if (idx >= activePoints.length) {
+                    break;
+                }
 
-            const batchResults = await Promise.all(
-                batch.map(async (point) => {
-                    const response = await fetchReading(token, point.id);
-                    const nightEntry = response.readings.find(
-                        (r) =>
-                            r.tariffZoneId === TARIFF_ZONE_NIGHT && r.parameterId === PARAMETER_ID,
-                    );
-                    const dayEntry = response.readings.find(
-                        (r) => r.tariffZoneId === TARIFF_ZONE_DAY && r.parameterId === PARAMETER_ID,
-                    );
-                    const caption = point.caption;
-                    const nightValue =
-                        nightEntry?.lastValue != null
-                            ? Math.trunc(nightEntry.lastValue / 1000)
-                            : null;
-                    const nightDate = nightEntry?.lastValueDate ?? null;
-                    const dayValue =
-                        dayEntry?.lastValue != null ? Math.trunc(dayEntry.lastValue / 1000) : null;
-                    const dayDate = dayEntry?.lastValueDate ?? null;
-                    return { caption, nightValue, nightDate, dayValue, dayDate };
-                }),
-            );
+                const point = activePoints[idx];
 
-            readings.push(...batchResults);
+                const response = await fetchReading(token, point.id);
+                const nightEntry = response.readings.find(
+                    (r) => r.tariffZoneId === TARIFF_ZONE_NIGHT && r.parameterId === PARAMETER_ID,
+                );
+                const dayEntry = response.readings.find(
+                    (r) => r.tariffZoneId === TARIFF_ZONE_DAY && r.parameterId === PARAMETER_ID,
+                );
+                const caption = point.caption;
+                const nightValue =
+                    nightEntry?.lastValue != null ? Math.trunc(nightEntry.lastValue / 1000) : null;
+                const nightDate = nightEntry?.lastValueDate ?? null;
+                const dayValue =
+                    dayEntry?.lastValue != null ? Math.trunc(dayEntry.lastValue / 1000) : null;
+                const dayDate = dayEntry?.lastValueDate ?? null;
+                readings.push({ caption, nightValue, nightDate, dayValue, dayDate });
 
-            if (i + BATCH_SIZE < activePoints.length) {
-                const delay = DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN);
-                await new Promise((r) => setTimeout(r, delay));
+                status.textContent = `Показания: ${readings.length}/${activePoints.length}`;
+
+                if (nextIndex < activePoints.length) {
+                    const delay = DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN);
+                    await new Promise((r) => setTimeout(r, delay));
+                }
             }
         }
+
+        await Promise.all(
+            Array.from({ length: Math.min(BATCH_SIZE, activePoints.length) }, () => worker()),
+        );
 
         status.textContent = `Готово. Показаний: ${readings.length}`;
         button.textContent = 'Собрать показания';
