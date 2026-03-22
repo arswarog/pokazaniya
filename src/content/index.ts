@@ -1,6 +1,14 @@
-console.log('[Показания] Content script loaded');
-
-const BASE_URL = 'https://62.33.168.51:6001';
+import { fetchMeterPoints, fetchReading } from './api';
+import {
+    BATCH_SIZE,
+    DELAY_MAX,
+    DELAY_MIN,
+    PARAMETER_ID,
+    TARIFF_ZONE_DAY,
+    TARIFF_ZONE_NIGHT,
+} from './constants';
+import { downloadCsv } from './csv';
+import { CollectedReading } from './types';
 
 function getAccessToken(): string | null {
     try {
@@ -41,90 +49,8 @@ function createInfoBlock(): {
     return { container, status, button, downloadBtn };
 }
 
-interface MeterPoint {
-    id: number;
-    caption: string;
-}
-
-interface ReadingEntry {
-    lastValue: number | null;
-    lastValueDate: string | null;
-    parameterId: number;
-    tariffZoneId: number;
-    currentValue: number | null;
-}
-
-interface ReadingResponse {
-    readings: ReadingEntry[];
-}
-
-interface CollectedReading {
-    caption: string;
-    nightValue: number | null;
-    nightDate: string | null;
-    dayValue: number | null;
-    dayDate: string | null;
-}
-
-function getLastMidnight(): string {
-    const now = new Date();
-    now.setHours(0, -now.getTimezoneOffset(), 0, 0);
-    return now.toISOString().replace('Z', '');
-}
-
-async function fetchMeterPoints(token: string): Promise<MeterPoint[]> {
-    const res = await fetch(`${BASE_URL}/api/v1/meterpoints/getmeterpoints/`, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
-    if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-    }
-    return res.json();
-}
-
-async function fetchReading(token: string, meterPointId: number): Promise<ReadingResponse> {
-    const res = await fetch(`${BASE_URL}/api/v1/meterpointreadings/read/`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            meterPointId,
-            valuesDt: getLastMidnight(),
-        }),
-    });
-    if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-    }
-    return res.json();
-}
-
 let paused = false;
 let running = false;
-
-function downloadCsv(readings: CollectedReading[]) {
-    const header = 'Точка учёта;Суммарно;Дата;Показание день;Дата день;Показание ночь;Дата ночь';
-    const rows = readings.map((r) => {
-        const total =
-            r.dayValue != null && r.nightValue != null ? `${r.dayValue} - ${r.nightValue}` : '';
-        const date = (r.dayDate ?? r.nightDate)?.slice(0, 10) ?? '';
-        const dayDate = r.dayDate?.slice(0, 10) ?? '';
-        const nightDate = r.nightDate?.slice(0, 10) ?? '';
-        return `${r.caption};${total};${date};${r.dayValue ?? ''};${dayDate};${r.nightValue ?? ''};${nightDate}`;
-    });
-    const csv = [header, ...rows].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pokazaniya_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
 let currentReadings: CollectedReading[] = [];
 
 async function collectReadings(token: string, status: HTMLDivElement, button: HTMLButtonElement) {
@@ -145,7 +71,6 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
         currentReadings = [];
         const readings = currentReadings;
         const activePoints = points.filter((p) => p.id !== 0);
-        const BATCH_SIZE = 3;
 
         for (let i = 0; i < activePoints.length; i += BATCH_SIZE) {
             while (paused) {
@@ -159,10 +84,11 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
                 batch.map(async (point) => {
                     const response = await fetchReading(token, point.id);
                     const nightEntry = response.readings.find(
-                        (r) => r.tariffZoneId === 6512 && r.parameterId === -2161,
+                        (r) =>
+                            r.tariffZoneId === TARIFF_ZONE_NIGHT && r.parameterId === PARAMETER_ID,
                     );
                     const dayEntry = response.readings.find(
-                        (r) => r.tariffZoneId === 1751 && r.parameterId === -2161,
+                        (r) => r.tariffZoneId === TARIFF_ZONE_DAY && r.parameterId === PARAMETER_ID,
                     );
                     const caption = point.caption;
                     const nightValue =
@@ -173,7 +99,6 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
                     const dayValue =
                         dayEntry?.lastValue != null ? Math.trunc(dayEntry.lastValue / 1000) : null;
                     const dayDate = dayEntry?.lastValueDate ?? null;
-                    console.log({ caption, nightValue, nightDate, dayValue, dayDate, response });
                     return { caption, nightValue, nightDate, dayValue, dayDate };
                 }),
             );
@@ -181,7 +106,7 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
             readings.push(...batchResults);
 
             if (i + BATCH_SIZE < activePoints.length) {
-                const delay = 1000 + Math.random() * 2000;
+                const delay = DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN);
                 await new Promise((r) => setTimeout(r, delay));
             }
         }

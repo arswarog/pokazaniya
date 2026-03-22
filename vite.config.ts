@@ -1,7 +1,6 @@
 import { copyFileSync } from 'node:fs';
 import path from 'node:path';
 
-import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 
 function copyContentCss(): Plugin {
@@ -18,7 +17,7 @@ function copyContentCss(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [react(), copyContentCss()],
+    plugins: [copyContentCss()],
     server: {
         host: '0.0.0.0',
     },
@@ -30,7 +29,6 @@ export default defineConfig({
     build: {
         rollupOptions: {
             input: {
-                popup: path.resolve(__dirname, 'popup.html'),
                 content: path.resolve(__dirname, 'src/content/index.ts'),
             },
             output: {
