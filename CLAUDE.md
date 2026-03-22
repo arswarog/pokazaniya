@@ -24,9 +24,19 @@ Two entry points built by Vite (`vite.config.ts` rollupOptions.input):
 - **popup** (`popup.html` → `src/popup/index.tsx`) — extension popup UI (React)
 - **content** (`src/content/index.ts`) — content script injected into pages; `src/content/content.css` is copied to `dist/` via a custom Vite plugin
 
-`public/manifest.json` — Chrome extension manifest. Content script loads `content.js` + `content.css` on all URLs.
+`public/manifest.json` — Chrome extension manifest. Content script matches `http(s)://62.33.168.51:6001/*` only.
 
 Path alias: `@src/*` → `src/*` (configured in both `tsconfig.app.json` and `vite.config.ts`).
+
+## API
+
+Base URL: `https://62.33.168.51:6001`
+
+Auth: Bearer token from `localStorage.security_permissions.accessToken`.
+
+Endpoints used by content script:
+- `GET /api/v1/meterpoints/getmeterpoints/` — returns array of meter points. Each has `id: number` (points with `id === 0` are skipped).
+- `POST /api/v1/meterpointreadings/read/` — body: `{ meterPointId: number, valuesDt: string }`. `valuesDt` is last midnight in local time as ISO string without `Z` suffix (e.g. `2026-03-22T00:00:00.000`). Requests are made sequentially with 1–3s random delay between each.
 
 ## Code style
 
