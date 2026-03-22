@@ -19,6 +19,7 @@ function createInfoBlock(): {
     container: HTMLDivElement;
     status: HTMLDivElement;
     button: HTMLButtonElement;
+    downloadBtn: HTMLButtonElement;
 } {
     const container = document.createElement('div');
     container.id = 'pokazaniya-info';
@@ -31,8 +32,13 @@ function createInfoBlock(): {
     button.textContent = 'Собрать показания';
     container.appendChild(button);
 
+    const downloadBtn = document.createElement('button');
+    downloadBtn.id = 'pokazaniya-download';
+    downloadBtn.textContent = 'Скачать CSV';
+    container.appendChild(downloadBtn);
+
     document.body.appendChild(container);
-    return { container, status, button };
+    return { container, status, button, downloadBtn };
 }
 
 interface MeterPoint {
@@ -96,6 +102,21 @@ async function fetchReading(token: string, meterPointId: number): Promise<Readin
 let paused = false;
 let running = false;
 
+function downloadCsv(readings: CollectedReading[]) {
+    const header = 'Точка учёта;Показание';
+    const rows = readings.map((r) => `${r.caption};${r.value ?? ''}`);
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pokazaniya_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+let currentReadings: CollectedReading[] = [];
+
 async function collectReadings(token: string, status: HTMLDivElement, button: HTMLButtonElement) {
     if (running) {
         paused = !paused;
@@ -111,7 +132,8 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
         status.textContent = 'Загрузка списка точек учёта...';
         const points = await fetchMeterPoints(token);
 
-        const readings: CollectedReading[] = [];
+        currentReadings = [];
+        const readings = currentReadings;
         const activePoints = points.filter((p) => p.id !== 0);
         for (const point of activePoints) {
             while (paused) {
@@ -146,6 +168,7 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
 
         status.textContent = `Готово. Показаний: ${readings.length}`;
         button.textContent = 'Собрать показания';
+
         console.log('[Показания] Readings:', readings);
     } catch (err) {
         console.error('[Показания] Error:', err);
@@ -164,10 +187,11 @@ function init() {
         return;
     }
 
-    const { status, button } = createInfoBlock();
+    const { status, button, downloadBtn } = createInfoBlock();
     status.textContent = 'Готов к сбору показаний';
 
     button.addEventListener('click', () => collectReadings(token, status, button));
+    downloadBtn.addEventListener('click', () => downloadCsv(currentReadings));
 }
 
 init();
