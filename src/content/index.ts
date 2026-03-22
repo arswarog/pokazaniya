@@ -133,7 +133,12 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
                 value,
             });
 
-            console.log(readings);
+            console.log({
+                caption,
+                value,
+                entry,
+                response,
+            });
 
             const delay = 1000 + Math.random() * 2000;
             await new Promise((r) => setTimeout(r, delay));
