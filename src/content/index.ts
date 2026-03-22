@@ -1,13 +1,7 @@
 import { fetchMeterPoints, fetchReading } from './api';
-import {
-    BATCH_SIZE,
-    DELAY_MAX,
-    DELAY_MIN,
-    PARAMETER_ID,
-    TARIFF_ZONE_DAY,
-    TARIFF_ZONE_NIGHT,
-} from './constants';
+import { BATCH_SIZE, DELAY_MAX, DELAY_MIN } from './constants';
 import { downloadCsv } from './csv';
+import { parseReadingResponse } from './parseReadingResponse';
 import { CollectedReading } from './types';
 
 function getAccessToken(): string | null {
@@ -87,20 +81,7 @@ async function collectReadings(token: string, status: HTMLDivElement, button: HT
                 const point = activePoints[idx];
 
                 const response = await fetchReading(token, point.id);
-                const nightEntry = response.readings.find(
-                    (r) => r.tariffZoneId === TARIFF_ZONE_NIGHT && r.parameterId === PARAMETER_ID,
-                );
-                const dayEntry = response.readings.find(
-                    (r) => r.tariffZoneId === TARIFF_ZONE_DAY && r.parameterId === PARAMETER_ID,
-                );
-                const caption = point.caption;
-                const nightValue =
-                    nightEntry?.lastValue != null ? Math.trunc(nightEntry.lastValue / 1000) : null;
-                const nightDate = nightEntry?.lastValueDate ?? null;
-                const dayValue =
-                    dayEntry?.lastValue != null ? Math.trunc(dayEntry.lastValue / 1000) : null;
-                const dayDate = dayEntry?.lastValueDate ?? null;
-                readings.push({ caption, nightValue, nightDate, dayValue, dayDate });
+                readings.push(parseReadingResponse(point.caption, response));
 
                 status.textContent = `Показания: ${readings.length}/${activePoints.length}`;
 
