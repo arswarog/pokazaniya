@@ -6,14 +6,11 @@
     "icons": {
         "128": "icon.png"
     },
-    "action": {
-        "default_popup": "popup.html",
-        "default_icon": "icon.png"
-    },
     "content_scripts": [
         {
             "matches": [
-                "<all_urls>"
+                "http://62.33.168.51:6001/*",
+                "https://62.33.168.51:6001/*"
             ],
             "js": [
                 "content.js"
