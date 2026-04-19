@@ -1,8 +1,10 @@
+import { fillMissingReadings } from './fillMissingReadings';
 import { CollectedReading } from './types';
 
 export function downloadCsv(readings: CollectedReading[]) {
     const header = 'Точка учёта;Суммарно;Дата;Показание день;Дата день;Показание ночь;Дата ночь';
-    const rows = readings.map((r) => {
+    const filled = fillMissingReadings(readings);
+    const rows = filled.map((r) => {
         const total =
             r.dayValue != null && r.nightValue != null ? `${r.dayValue} - ${r.nightValue}` : '';
         const date = (r.dayDate ?? r.nightDate)?.slice(0, 10) ?? '';
