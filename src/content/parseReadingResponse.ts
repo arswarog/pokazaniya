@@ -1,5 +1,5 @@
 import { PARAMETER_ID, STALE_THRESHOLD_MS, TARIFF_ZONE_DAY, TARIFF_ZONE_NIGHT } from './constants';
-import { CollectedReading, ReadingResponse } from './types';
+import { CollectedReading, ReadingEntry, ReadingResponse } from './types';
 
 function isStale(date: string | null): boolean {
     if (!date) {
@@ -12,6 +12,21 @@ function isStale(date: string | null): boolean {
     return Date.now() - t > STALE_THRESHOLD_MS;
 }
 
+function isEmptyEntry(entry: ReadingEntry | undefined): boolean {
+    if (!entry) {
+        return true;
+    }
+    if (entry.lastValue !== null) {
+        return false;
+    }
+    const d = entry.lastValueDate;
+    if (!d) {
+        return true;
+    }
+    const t = Date.parse(d);
+    return Number.isNaN(t) || t < 0;
+}
+
 export function parseReadingResponse(caption: string, response: ReadingResponse): CollectedReading {
     const nightEntry = response.readings.find(
         (r) => r.tariffZoneId === TARIFF_ZONE_NIGHT && r.parameterId === PARAMETER_ID,
@@ -20,8 +35,8 @@ export function parseReadingResponse(caption: string, response: ReadingResponse)
         (r) => r.tariffZoneId === TARIFF_ZONE_DAY && r.parameterId === PARAMETER_ID,
     );
 
-    const nightDate = nightEntry?.lastValueDate ?? null;
-    const dayDate = dayEntry?.lastValueDate ?? null;
+    const nightDate = isEmptyEntry(nightEntry) ? null : (nightEntry?.lastValueDate ?? null);
+    const dayDate = isEmptyEntry(dayEntry) ? null : (dayEntry?.lastValueDate ?? null);
 
     const nightValue =
         nightEntry?.lastValue != null && !isStale(nightDate)
