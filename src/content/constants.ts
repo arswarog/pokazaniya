@@ -5,3 +5,4 @@ export const PARAMETER_ID = -2161;
 export const BATCH_SIZE = 1;
 export const DELAY_MIN = 500;
 export const DELAY_MAX = 1500;
+export const STALE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
