@@ -3,5 +3,5 @@ export const TARIFF_ZONE_NIGHT = 6512;
 export const TARIFF_ZONE_DAY = 1751;
 export const PARAMETER_ID = -2161;
 export const BATCH_SIZE = 1;
-export const DELAY_MIN = 1500;
-export const DELAY_MAX = 5000;
+export const DELAY_MIN = 500;
+export const DELAY_MAX = 1500;
